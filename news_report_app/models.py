@@ -14,11 +14,13 @@ class NewsItem:
     source: str = ""
     title: str = ""
     content: str = ""
+    category: str = ""  # News category/classification
     image_path: Optional[str] = None
     coordinates: Optional[str] = None
     recommendation: Optional[str] = None
     incident_time: Optional[str] = None  # Time of the incident/accident
     created_at: datetime = field(default_factory=datetime.now)
+    selected_for_report: bool = True  # Flag to indicate if item should be included in report
     
     def is_valid(self) -> bool:
         """Check if the news item has all required fields."""
@@ -31,6 +33,8 @@ class NewsItem:
     def get_attachments_summary(self) -> str:
         """Get a summary of attachments for display."""
         attachments = []
+        if self.category:
+            attachments.append(f"📋 {self.category}")
         if self.image_path:
             attachments.append("🖼")
         if self.coordinates:
@@ -39,4 +43,4 @@ class NewsItem:
             attachments.append("💡")
         if self.incident_time:
             attachments.append("⏰")
-        return " ".join(attachments) if attachments else "-"
+        return " | ".join(attachments) if attachments else "-"

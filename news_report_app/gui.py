@@ -6,11 +6,18 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import List, Optional
 from pathlib import Path
+from datetime import datetime
 
 import customtkinter as ctk
+from PIL import Image, ImageTk
 
 from models import NewsItem
 from doc_generator import DocExporter
+
+
+# Set appearance mode and default color theme
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
 
 class NewsManager:
@@ -34,11 +41,13 @@ class NewsManager:
                             source=item_data.get('source', ''),
                             title=item_data.get('title', ''),
                             content=item_data.get('content', ''),
+                            category=item_data.get('category', ''),
                             image_path=item_data.get('image_path'),
                             coordinates=item_data.get('coordinates'),
                             incident_time=item_data.get('incident_time'),
                             recommendation=item_data.get('recommendation'),
-                            created_at=__import__('datetime').datetime.fromisoformat(item_data.get('created_at', __import__('datetime').datetime.now().isoformat()))
+                            created_at=datetime.fromisoformat(item_data.get('created_at', datetime.now().isoformat())),
+                            selected_for_report=item_data.get('selected_for_report', True)
                         )
                         self.items.append(item)
                         if item.source and item.source not in self.sources:
@@ -56,11 +65,13 @@ class NewsManager:
                     'source': item.source,
                     'title': item.title,
                     'content': item.content,
+                    'category': item.category,
                     'image_path': item.image_path,
                     'coordinates': item.coordinates,
                     'incident_time': item.incident_time,
                     'recommendation': item.recommendation,
-                    'created_at': item.created_at.isoformat()
+                    'created_at': item.created_at.isoformat(),
+                    'selected_for_report': item.selected_for_report
                 }
                 for item in self.items
             ]
@@ -97,7 +108,7 @@ class NewsManager:
 
 
 class NewsDialog(ctk.CTkToplevel):
-    """Modal dialog for adding/editing news items."""
+    """Modal dialog for adding/editing news items with enhanced UI."""
     
     def __init__(self, parent, on_save_callback, sources: List[str] = None):
         super().__init__(parent)
@@ -105,13 +116,16 @@ class NewsDialog(ctk.CTkToplevel):
         self.on_save = on_save_callback
         self.available_sources = sources or []
         
-        self.title("إضافة خبر جديد")
-        self.geometry("600x850")
-        self.resizable(False, False)
+        self.title("✨ إضافة خبر جديد")
+        self.geometry("700x900")
+        self.resizable(True, True)
+        self.minsize(600, 800)
         self.transient(parent)
         self.grab_set()
         
         self.image_path: Optional[str] = None
+        self.image_preview = None
+        self.preview_label = None
         
         self._create_widgets()
         self._center_window()
@@ -119,97 +133,357 @@ class NewsDialog(ctk.CTkToplevel):
     def _center_window(self):
         """Center the dialog on parent window."""
         self.update_idletasks()
-        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (600 // 2)
-        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (850 // 2)
+        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (700 // 2)
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (900 // 2)
         self.geometry(f"+{x}+{y}")
     
     def _create_widgets(self):
-        """Create all dialog widgets."""
-        main_frame = ctk.CTkFrame(self)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        """Create all dialog widgets with modern styling."""
+        # Main scrollable frame
+        main_scroll = ctk.CTkScrollableFrame(self, label_text="معلومات الخبر")
+        main_scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Header section
+        header_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 20))
+        
+        title_label = ctk.CTkLabel(
+            header_frame, 
+            text="📝 إضافة خبر جديد",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#4CAF50"
+        )
+        title_label.pack(side="right")
+        
+        subtitle_label = ctk.CTkLabel(
+            header_frame,
+            text="يرجى ملء المعلومات أدناه",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        subtitle_label.pack(side="right", padx=(0, 10), pady=(5, 0))
+        
+        # Required fields note
+        note_frame = ctk.CTkFrame(main_scroll, fg_color="#FF980020")
+        note_frame.pack(fill="x", pady=(0, 20))
+        note_label = ctk.CTkLabel(
+            note_frame,
+            text="⚠️ الحقول المميزة بـ (*) مطلوبة",
+            font=ctk.CTkFont(size=11),
+            text_color="#FF9800"
+        )
+        note_label.pack(pady=8)
         
         # Source - with dropdown
-        ctk.CTkLabel(main_frame, text="📰 المصدر (مطلوب)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        source_label = ctk.CTkLabel(
+            field_frame, 
+            text="📰 المصدر *", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        source_label.pack(anchor="e", pady=(0, 5))
+        
         self.source_var = tk.StringVar()
         self.source_combo = ctk.CTkComboBox(
-            main_frame, 
-            values=self.available_sources,
+            field_frame, 
+            values=self.available_sources + ["--- مصدر جديد ---"],
             variable=self.source_var,
-            width=500,
-            font=("Arial", 12)
+            width=600,
+            font=ctk.CTkFont(size=12),
+            dropdown_font=ctk.CTkFont(size=12),
+            state="readonly"
         )
-        self.source_combo.pack(fill="x", pady=(0, 10))
-        self.source_combo.set("")  # Allow empty for new source
+        self.source_combo.pack(fill="x", anchor="e")
+        self.source_combo.set("")
+        self.source_combo.bind("<<ComboboxSelected>>", self._on_source_selected)
+        
+        # Category/Classification
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        category_label = ctk.CTkLabel(
+            field_frame, 
+            text="📋 تصنيف الخبر", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        category_label.pack(anchor="e", pady=(0, 5))
+        
+        self.category_var = tk.StringVar()
+        categories = ["عام", "سياسة", "اقتصاد", "رياضة", "تكنولوجيا", "صحة", "تعليم", "ثقافة", "منوعات", "حوادث", "طقس"]
+        self.category_combo = ctk.CTkComboBox(
+            field_frame, 
+            values=categories,
+            variable=self.category_var,
+            width=600,
+            font=ctk.CTkFont(size=12),
+            dropdown_font=ctk.CTkFont(size=12),
+            state="readonly"
+        )
+        self.category_combo.pack(fill="x", anchor="e")
+        self.category_combo.set("")
         
         # Title
-        ctk.CTkLabel(main_frame, text="🏷️ العنوان/رأس الخبر (مطلوب)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        title_label = ctk.CTkLabel(
+            field_frame, 
+            text="🏷️ العنوان/رأس الخبر *", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        title_label.pack(anchor="e", pady=(0, 5))
+        
         self.title_var = tk.StringVar()
-        self.title_entry = ctk.CTkEntry(main_frame, textvariable=self.title_var, width=500, font=("Arial", 12))
-        self.title_entry.pack(fill="x", pady=(0, 10))
+        self.title_entry = ctk.CTkEntry(
+            field_frame, 
+            textvariable=self.title_var, 
+            width=600, 
+            font=ctk.CTkFont(size=12),
+            placeholder_text="أدخل عنوان الخبر هنا..."
+        )
+        self.title_entry.pack(fill="x", anchor="e")
         
         # Content
-        ctk.CTkLabel(main_frame, text="📝 المحتوى/نص الخبر (مطلوب)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
-        self.content_text = ctk.CTkTextbox(main_frame, height=150, width=500, font=("Arial", 12))
-        self.content_text.pack(fill="x", pady=(0, 10))
-        # --- FIX: Enable paste (Ctrl+V) in the content textbox ---
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        content_label = ctk.CTkLabel(
+            field_frame, 
+            text="📝 المحتوى/نص الخبر *", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        content_label.pack(anchor="e", pady=(0, 5))
+        
+        self.content_text = ctk.CTkTextbox(
+            field_frame, 
+            height=180, 
+            width=600, 
+            font=ctk.CTkFont(size=12),
+            wrap="word"
+        )
+        self.content_text.pack(fill="x", anchor="e")
         self.content_text.bind("<Control-v>", self._on_paste)
         self.content_text.bind("<Control-V>", self._on_paste)
         
-        # Image
-        ctk.CTkLabel(main_frame, text="📷 صورة (اختياري)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
-        img_frame = ctk.CTkFrame(main_frame)
-        img_frame.pack(fill="x", pady=(0, 10))
-        self.image_label = ctk.CTkLabel(img_frame, text="لم يتم اختيار صورة", font=("Arial", 12))
-        self.image_label.pack(side="right", padx=(0, 10))
-        ctk.CTkButton(img_frame, text="اختر صورة", command=self._select_image, font=("Arial", 12)).pack(side="right")
+        # Image section with preview
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        image_label = ctk.CTkLabel(
+            field_frame, 
+            text="📷 الصورة المرفقة", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        image_label.pack(anchor="e", pady=(0, 5))
+        
+        img_container = ctk.CTkFrame(field_frame)
+        img_container.pack(fill="x", anchor="e")
+        
+        btn_frame = ctk.CTkFrame(img_container, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=10)
+        
+        ctk.CTkButton(
+            btn_frame, 
+            text="📁 اختيار صورة", 
+            command=self._select_image,
+            font=ctk.CTkFont(size=12),
+            width=150,
+            fg_color="#2196F3",
+            hover_color="#1976D2"
+        ).pack(side="right", padx=(0, 10))
+        
+        ctk.CTkButton(
+            btn_frame, 
+            text="🗑️ إزالة", 
+            command=self._remove_image,
+            font=ctk.CTkFont(size=12),
+            width=100,
+            fg_color="#F44336",
+            hover_color="#D32F2F"
+        ).pack(side="right")
+        
+        self.image_info_label = ctk.CTkLabel(
+            img_container, 
+            text="لم يتم اختيار صورة", 
+            font=ctk.CTkFont(size=11),
+            text_color="gray",
+            anchor="e"
+        )
+        self.image_info_label.pack(anchor="e", pady=(0, 10))
+        
+        # Image preview
+        self.preview_frame = ctk.CTkFrame(img_container, fg_color="#2a2a2a")
+        self.preview_frame.pack(fill="x", pady=(0, 10))
+        
+        self.preview_label = ctk.CTkLabel(
+            self.preview_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.preview_label.pack(pady=20)
         
         # Coordinates
-        ctk.CTkLabel(main_frame, text="📍 إحداثيات/موقع (اختياري)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        coords_label = ctk.CTkLabel(
+            field_frame, 
+            text="📍 الإحداثيات/الموقع", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        coords_label.pack(anchor="e", pady=(0, 5))
+        
         self.coords_var = tk.StringVar()
-        self.coords_entry = ctk.CTkEntry(main_frame, textvariable=self.coords_var, width=500, font=("Arial", 12))
-        self.coords_entry.pack(fill="x", pady=(0, 10))
+        self.coords_entry = ctk.CTkEntry(
+            field_frame, 
+            textvariable=self.coords_var, 
+            width=600, 
+            font=ctk.CTkFont(size=12),
+            placeholder_text="مثال: 24.7136° N, 46.6753° E"
+        )
+        self.coords_entry.pack(fill="x", anchor="e")
         
         # Incident Time
-        ctk.CTkLabel(main_frame, text="⏰ وقت الحدث (اختياري)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        time_label = ctk.CTkLabel(
+            field_frame, 
+            text="⏰ وقت الحدث", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        time_label.pack(anchor="e", pady=(0, 5))
+        
         self.time_var = tk.StringVar()
-        self.time_entry = ctk.CTkEntry(main_frame, textvariable=self.time_var, width=500, font=("Arial", 12))
-        self.time_entry.pack(fill="x", pady=(0, 10))
+        self.time_entry = ctk.CTkEntry(
+            field_frame, 
+            textvariable=self.time_var, 
+            width=600, 
+            font=ctk.CTkFont(size=12),
+            placeholder_text="مثال: 2024-01-15 14:30"
+        )
+        self.time_entry.pack(fill="x", anchor="e")
         
         # Recommendation
-        ctk.CTkLabel(main_frame, text="💡 توصية أو ملاحظة إضافية (اختياري)", font=("Arial", 12)).pack(anchor="e", pady=(10, 0))
-        self.rec_text = ctk.CTkTextbox(main_frame, height=80, width=500, font=("Arial", 12))
-        self.rec_text.pack(fill="x", pady=(0, 10))
-        # --- FIX: Enable paste (Ctrl+V) in the recommendation textbox ---
+        field_frame = ctk.CTkFrame(main_scroll, fg_color="transparent")
+        field_frame.pack(fill="x", pady=(0, 15))
+        
+        rec_label = ctk.CTkLabel(
+            field_frame, 
+            text="💡 توصية أو ملاحظة إضافية", 
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="e"
+        )
+        rec_label.pack(anchor="e", pady=(0, 5))
+        
+        self.rec_text = ctk.CTkTextbox(
+            field_frame, 
+            height=100, 
+            width=600, 
+            font=ctk.CTkFont(size=12),
+            wrap="word"
+        )
+        self.rec_text.pack(fill="x", anchor="e")
         self.rec_text.bind("<Control-v>", self._on_paste)
         self.rec_text.bind("<Control-V>", self._on_paste)
         
-        # Save button
-        ctk.CTkButton(main_frame, text="✅ حفظ الخبر", command=self._save,
-                     fg_color="#2E8B57", hover_color="#3CB371", font=("Arial", 12)).pack(pady=20)
+        # Button frame at bottom
+        button_frame = ctk.CTkFrame(self, fg_color="transparent")
+        button_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        ctk.CTkButton(
+            button_frame, 
+            text="✅ حفظ الخبر", 
+            command=self._save,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="#4CAF50",
+            hover_color="#45A049",
+            width=200,
+            height=45
+        ).pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(
+            button_frame, 
+            text="❌ إلغاء", 
+            command=self.destroy,
+            font=ctk.CTkFont(size=14),
+            fg_color="#757575",
+            hover_color="#616161",
+            width=150,
+            height=45
+        ).pack(side="left")
+    
+    def _on_source_selected(self, event=None):
+        """Handle selection of 'New Source' option."""
+        if self.source_var.get() == "--- مصدر جديد ---":
+            self.source_combo.set("")
+            self.source_combo.focus()
     
     def _select_image(self):
-        """Open file dialog to select an image."""
+        """Open file dialog to select an image and show preview."""
         file_path = filedialog.askopenfilename(
             title="اختر صورة",
-            filetypes=[("Image files", "*.png *.jpg *.jpeg")]
+            filetypes=[
+                ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                ("All files", "*.*")
+            ]
         )
         if file_path:
             self.image_path = file_path
             filename = os.path.basename(file_path)
-            self.image_label.configure(text=filename)
+            filesize = os.path.getsize(file_path) / 1024  # KB
+            
+            self.image_info_label.configure(
+                text=f"📄 {filename} ({filesize:.1f} KB)",
+                text_color="#4CAF50"
+            )
+            
+            # Create preview
+            try:
+                img = Image.open(file_path)
+                img.thumbnail((300, 200), Image.Resampling.LANCZOS)
+                self.image_preview = ctk.CTkImage(
+                    light_image=img,
+                    dark_image=img,
+                    size=(img.width, img.height)
+                )
+                self.preview_label.configure(image=self.image_preview, text="")
+                self.preview_frame.configure(height=img.height + 40)
+            except Exception as e:
+                print(f"Error loading image preview: {e}")
+                self.preview_label.configure(text="⚠️ تعذر عرض المعاينة")
+    
+    def _remove_image(self):
+        """Remove selected image."""
+        self.image_path = None
+        self.image_preview = None
+        self.image_info_label.configure(
+            text="لم يتم اختيار صورة",
+            text_color="gray"
+        )
+        self.preview_label.configure(image=None, text="")
+        self.preview_frame.configure(height=60)
     
     def _on_paste(self, event=None):
         """Handle Ctrl+V paste by inserting clipboard text at the cursor position."""
         try:
-            text = self.clipboard_get()
-            widget = event.widget if event else self.focus_get()
-            if widget:
-                # Insert text at the current cursor position
-                if widget.index("insert") != "1.0":
-                    pass  # use default insert position
-                widget.insert("insert", text)
-            return "break"  # Prevent default handling
-        except Exception:
+            import pyperclip
+            text = pyperclip.paste()
+            widget = event.widget
+            widget.insert("insert", text)
+            return "break"
+        except Exception as e:
+            print(f"Paste error: {e}")
             return "break"
 
     def _save(self):
@@ -218,14 +492,24 @@ class NewsDialog(ctk.CTkToplevel):
         title = self.title_var.get().strip()
         content = self.content_text.get("1.0", "end-1c").strip()
         
-        if not source or not title or not content:
-            messagebox.showerror("خطأ", "يرجى ملء الحقول المطلوبة: المصدر، العنوان، والمحتوى", parent=self)
+        errors = []
+        if not source:
+            errors.append("المصدر")
+        if not title:
+            errors.append("العنوان")
+        if not content:
+            errors.append("المحتوى")
+        
+        if errors:
+            error_msg = "يرجى ملء الحقول المطلوبة:\n" + "\n".join([f"• {field}" for field in errors])
+            messagebox.showerror("⚠️ حقول ناقصة", error_msg, parent=self)
             return
         
         item = NewsItem(
             source=source,
             title=title,
             content=content,
+            category=self.category_var.get().strip(),
             image_path=self.image_path,
             coordinates=self.coords_var.get().strip() or None,
             incident_time=self.time_var.get().strip() or None,
@@ -237,13 +521,18 @@ class NewsDialog(ctk.CTkToplevel):
 
 
 class NewsReportApp(ctk.CTk):
-    """Main application window."""
+    """Main application window with modern design."""
     
     def __init__(self):
         super().__init__()
         
-        self.title("تقرير الأخبار")
-        self.geometry("900x700")
+        self.title("✨ نظام إدارة التقارير الإخبارية")
+        self.geometry("1100x750")
+        self.minsize(900, 600)
+        
+        # Configure style
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
         
         self.manager = NewsManager()
         
@@ -251,53 +540,248 @@ class NewsReportApp(ctk.CTk):
         self._refresh_list()
     
     def _create_widgets(self):
-        """Create the main application widgets."""
-        # Top toolbar
+        """Create the main application widgets with modern styling."""
+        # Header section
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(20, 10))
+        
+        title_label = ctk.CTkLabel(
+            header_frame,
+            text="📰 نظام إدارة التقارير الإخبارية",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#4CAF50"
+        )
+        title_label.pack(side="right")
+        
+        subtitle_label = ctk.CTkLabel(
+            header_frame,
+            text="إدارة وتوليد التقارير الإخبارية بسهولة",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        subtitle_label.pack(side="right", padx=(0, 15), pady=(8, 0))
+        
+        # Stats frame
+        stats_frame = ctk.CTkFrame(header_frame, fg_color="#2a2a2a")
+        stats_frame.pack(side="left", padx=(0, 10))
+        
+        self.stats_label = ctk.CTkLabel(
+            stats_frame,
+            text=f"📊 عدد الأخبار: {len(self.manager.items)}",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#2196F3"
+        )
+        self.stats_label.pack(pady=10, padx=20)
+        
+        # Top toolbar with better styling
         toolbar = ctk.CTkFrame(self)
-        toolbar.pack(fill="x", padx=10, pady=10)
+        toolbar.pack(fill="x", padx=20, pady=(0, 15))
         
         ctk.CTkButton(
-            toolbar, text="➕ إضافة خبر", command=self._add_news,
-            fg_color="#2E8B57", hover_color="#3CB371", font=("Arial", 12)
-        ).pack(side="left", padx=5)
+            toolbar, 
+            text="➕ إضافة خبر جديد", 
+            command=self._add_news,
+            fg_color="#4CAF50",
+            hover_color="#45A049",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            width=180,
+            height=40,
+            corner_radius=8
+        ).pack(side="right", padx=(0, 10))
         
         ctk.CTkButton(
-            toolbar, text="🗑️ حذف المحدد", command=self._delete_selected,
-            fg_color="#DC143C", hover_color="#FF4500", font=("Arial", 12)
-        ).pack(side="left", padx=5)
+            toolbar, 
+            text="🗑️ حذف المحدد", 
+            command=self._delete_selected,
+            fg_color="#F44336",
+            hover_color="#D32F2F",
+            font=ctk.CTkFont(size=13),
+            width=140,
+            height=40,
+            corner_radius=8
+        ).pack(side="right", padx=(0, 10))
         
         ctk.CTkButton(
-            toolbar, text="🗑️ حذف الكل", command=self._clear_all,
-            fg_color="#8B0000", hover_color="#B22222", font=("Arial", 12)
-        ).pack(side="left", padx=5)
+            toolbar, 
+            text="🗑️ حذف الكل", 
+            command=self._clear_all,
+            fg_color="#FF9800",
+            hover_color="#F57C00",
+            font=ctk.CTkFont(size=13),
+            width=120,
+            height=40,
+            corner_radius=8
+        ).pack(side="right", padx=(0, 10))
         
         ctk.CTkButton(
-            toolbar, text="📄 توليد التقرير", command=self._generate_report,
-            fg_color="#1E90FF", hover_color="#4169E1", font=("Arial", 12)
-        ).pack(side="right", padx=5)
+            toolbar, 
+            text="📄 توليد التقرير Word", 
+            command=self._generate_report,
+            fg_color="#2196F3",
+            hover_color="#1976D2",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            width=200,
+            height=40,
+            corner_radius=8
+        ).pack(side="left", padx=(0, 10))
         
-        # News list
-        list_frame = ctk.CTkFrame(self)
-        list_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        # Search bar
+        search_frame = ctk.CTkFrame(self, fg_color="transparent")
+        search_frame.pack(fill="x", padx=20, pady=(0, 10))
         
-        columns = ("#", "المصدر", "العنوان", "المرفقات")
-        self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=20)
+        ctk.CTkLabel(
+            search_frame,
+            text="🔍 بحث:",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack(side="right", padx=(0, 5))
+        
+        self.search_var = tk.StringVar()
+        self.search_var.trace("w", lambda *args: self._filter_list())
+        self.search_entry = ctk.CTkEntry(
+            search_frame,
+            textvariable=self.search_var,
+            width=300,
+            font=ctk.CTkFont(size=12),
+            placeholder_text="ابحث بالعنوان أو المصدر..."
+        )
+        self.search_entry.pack(side="right", fill="x", expand=True)
+        
+        # News list with better styling
+        list_container = ctk.CTkFrame(self)
+        list_container.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        # Treeview styling
+        self.style.configure("Treeview",
+                            background="#2a2a2a",
+                            foreground="white",
+                            fieldbackground="#2a2a2a",
+                            font=ctk.CTkFont(size=11),
+                            rowheight=35)
+        self.style.map("Treeview",
+                      background=[('selected', '#2196F3')],
+                      foreground=[('selected', 'white')])
+        self.style.configure("Treeview.Heading",
+                            background="#1e1e1e",
+                            foreground="#4CAF50",
+                            font=ctk.CTkFont(size=12, weight="bold"))
+        self.style.map("Treeview.Heading",
+                      background=[('active', '#333333')])
+        
+        columns = ("#", "✓", "المصدر", "العنوان", "التصنيف", "المرفقات")
+        self.tree = ttk.Treeview(list_container, columns=columns, show="headings", height=20)
         
         self.tree.heading("#", text="#")
+        self.tree.heading("✓", text="✓")
         self.tree.heading("المصدر", text="المصدر")
         self.tree.heading("العنوان", text="العنوان")
+        self.tree.heading("التصنيف", text="التصنيف")
         self.tree.heading("المرفقات", text="المرفقات")
         
         self.tree.column("#", width=40, anchor="center")
+        self.tree.column("✓", width=40, anchor="center")
         self.tree.column("المصدر", width=150, anchor="center")
         self.tree.column("العنوان", width=400, anchor="w")
+        self.tree.column("التصنيف", width=100, anchor="center")
         self.tree.column("المرفقات", width=120, anchor="center")
         
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
+        # Custom scrollbar
+        scrollbar = ctk.CTkScrollbar(list_container, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
         self.tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        scrollbar.pack(side="right", fill="y", padx=(5, 0))
+        
+        # Footer
+        footer_frame = ctk.CTkFrame(self, fg_color="transparent")
+        footer_frame.pack(fill="x", padx=20, pady=(0, 10))
+        
+        info_label = ctk.CTkLabel(
+            footer_frame,
+            text="💡 تلميح: انقر مرتين على الخبر لعرض التفاصيل (قريباً)",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        info_label.pack(side="right")
+        
+        # Bind double-click to toggle selection and right-click for context menu
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
+        self.tree.bind("<Button-3>", self._show_context_menu)
+        
+        # Create context menu
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label="✓ تحديد/إلغاء التحديد", command=self._toggle_selected)
+        self.context_menu.add_command(label="✓ تحديد الكل", command=self._select_all)
+        self.context_menu.add_command(label="✗ إلغاء تحديد الكل", command=self._deselect_all)
+    
+    def _on_tree_double_click(self, event=None):
+        """Handle double-click on tree item to toggle selection."""
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            index = int(item["values"][0]) - 1
+            news_item = self.manager.get_item(index)
+            if news_item:
+                # Toggle selection
+                current_selection = getattr(news_item, 'selected_for_report', True)
+                news_item.selected_for_report = not current_selection
+                self._refresh_list()
+    
+    def _show_context_menu(self, event):
+        """Show context menu for selection options."""
+        self.context_menu.tk_popup(event.x_root, event.y_root)
+    
+    def _toggle_selected(self):
+        """Toggle selection status of the currently selected item."""
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            index = int(item["values"][0]) - 1
+            news_item = self.manager.get_item(index)
+            if news_item:
+                current_selection = getattr(news_item, 'selected_for_report', True)
+                news_item.selected_for_report = not current_selection
+                self._refresh_list()
+    
+    def _select_all(self):
+        """Select all items for report."""
+        for news_item in self.manager.items:
+            news_item.selected_for_report = True
+        self._refresh_list()
+    
+    def _deselect_all(self):
+        """Deselect all items for report."""
+        for news_item in self.manager.items:
+            news_item.selected_for_report = False
+        self._refresh_list()
+    
+    def _filter_list(self):
+        """Filter the news list based on search query."""
+        query = self.search_var.get().strip().lower()
+        
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        for i, news_item in enumerate(self.manager.items, 1):
+            if not query or \
+               query in news_item.title.lower() or \
+               query in news_item.source.lower() or \
+               (news_item.content and query in news_item.content.lower()) or \
+               (news_item.category and query in news_item.category.lower()):
+                # Check if item is selected for report (default: all selected)
+                checkmark = "✓" if getattr(news_item, 'selected_for_report', True) else ""
+                self.tree.insert("", "end", values=(
+                    i,
+                    checkmark,
+                    news_item.source,
+                    news_item.title,
+                    news_item.category or "",
+                    news_item.get_attachments_summary()
+                ))
+    
+    def _update_stats(self):
+        """Update the statistics display."""
+        self.stats_label.configure(text=f"📊 عدد الأخبار: {len(self.manager.items)}")
     
     def _refresh_list(self):
         """Refresh the news list display."""
@@ -305,12 +789,19 @@ class NewsReportApp(ctk.CTk):
             self.tree.delete(item)
         
         for i, news_item in enumerate(self.manager.items, 1):
+            # Check if item is selected for report (default: all selected)
+            checkmark = "✓" if getattr(news_item, 'selected_for_report', True) else ""
             self.tree.insert("", "end", values=(
                 i,
+                checkmark,
                 news_item.source,
                 news_item.title,
+                news_item.category or "",
                 news_item.get_attachments_summary()
             ))
+        
+        self._update_stats()
+        self._filter_list()  # Apply current filter
     
     def _add_news(self):
         """Open the add news dialog."""
@@ -330,36 +821,39 @@ class NewsReportApp(ctk.CTk):
         """Delete the selected news item."""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("تحذير", "يرجى تحديد خبر للحذف")
+            messagebox.showwarning("⚠️ تحذير", "يرجى تحديد خبر للحذف")
             return
         
         item = self.tree.item(selected[0])
         index = int(item["values"][0]) - 1
         
-        if messagebox.askyesno("تأكيد", "هل أنت متأكد من حذف هذا الخبر؟"):
+        if messagebox.askyesno("✅ تأكيد", "هل أنت متأكد من حذف هذا الخبر؟"):
             self.manager.remove_item(index)
             self._refresh_list()
     
     def _clear_all(self):
         """Clear all news items."""
         if not self.manager.items:
-            messagebox.showinfo("معلومات", "لا توجد أخبار للحذف")
+            messagebox.showinfo("ℹ️ معلومات", "لا توجد أخبار للحذف")
             return
         
-        if messagebox.askyesno("تأكيد", "هل أنت متأكد من حذف جميع الأخبار؟"):
+        if messagebox.askyesno("✅ تأكيد", "هل أنت متأكد من حذف جميع الأخبار؟"):
             self.manager.clear()
             self._refresh_list()
     
     def _generate_report(self):
-        """Generate the Word document report."""
-        if not self.manager.items:
-            messagebox.showwarning("تحذير", "لا توجد أخبار لتوليد التقرير")
+        """Generate the Word document report with selected items only."""
+        # Filter to get only selected items
+        selected_items = [item for item in self.manager.items if getattr(item, 'selected_for_report', True)]
+        
+        if not selected_items:
+            messagebox.showwarning("⚠️ تحذير", "لا توجد أخبار محددة لتوليد التقرير.\n\nيرجى تحديد خبر واحد على الأقل بالنقر المزدوج عليه أو استخدام قائمة الخيارات.")
             return
         
         try:
             exporter = DocExporter()
-            filepath = exporter.generate(self.manager.items)
-            messagebox.showinfo("نجح", f"تم توليد التقرير بنجاح:\n{filepath}")
+            filepath = exporter.generate(selected_items)
+            messagebox.showinfo("نجح", f"تم توليد التقرير بنجاح ({len(selected_items)} خبر):\n{filepath}")
         except Exception as e:
             messagebox.showerror("خطأ", f"حدث خطأ أثناء توليد التقرير:\n{str(e)}")
 
