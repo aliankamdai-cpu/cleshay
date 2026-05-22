@@ -1,26 +1,27 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
+# Build artifacts
+build/
+dist/
 
 # Dependencies
-venv/
-.venv/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Editors
-.vscode/
-.idea/
+# Logs
+*.log
 
-# Generated documents
-news_report_app/output/
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Output files
+output/
 ```

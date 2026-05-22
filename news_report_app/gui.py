@@ -672,14 +672,14 @@ class NewsReportApp(ctk.CTk):
         self.tree = ttk.Treeview(list_container, columns=columns, show="headings", height=20)
         
         self.tree.heading("#", text="#")
-        self.tree.heading("✓", text="✓")
+        self.tree.heading("✓", text="تحديد")
         self.tree.heading("المصدر", text="المصدر")
         self.tree.heading("العنوان", text="العنوان")
         self.tree.heading("التصنيف", text="التصنيف")
         self.tree.heading("المرفقات", text="المرفقات")
         
         self.tree.column("#", width=40, anchor="center")
-        self.tree.column("✓", width=40, anchor="center")
+        self.tree.column("✓", width=60, anchor="center")
         self.tree.column("المصدر", width=150, anchor="center")
         self.tree.column("العنوان", width=400, anchor="w")
         self.tree.column("التصنيف", width=100, anchor="center")
@@ -692,13 +692,19 @@ class NewsReportApp(ctk.CTk):
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y", padx=(5, 0))
         
+        # Store checkbox widgets
+        self.checkboxes = {}
+        
+        # Bind click on checkbox column to toggle
+        self.tree.bind("<Button-1>", self._on_checkbox_click)
+        
         # Footer
         footer_frame = ctk.CTkFrame(self, fg_color="transparent")
         footer_frame.pack(fill="x", padx=20, pady=(0, 10))
         
         info_label = ctk.CTkLabel(
             footer_frame,
-            text="💡 تلميح: انقر مرتين على الخبر لعرض التفاصيل (قريباً)",
+            text="💡 تلميح: انقر على مربع التحديد ✓ لاختيار الأخبار للتقرير",
             font=ctk.CTkFont(size=10),
             text_color="gray"
         )
@@ -713,6 +719,22 @@ class NewsReportApp(ctk.CTk):
         self.context_menu.add_command(label="✓ تحديد/إلغاء التحديد", command=self._toggle_selected)
         self.context_menu.add_command(label="✓ تحديد الكل", command=self._select_all)
         self.context_menu.add_command(label="✗ إلغاء تحديد الكل", command=self._deselect_all)
+    
+    def _on_checkbox_click(self, event):
+        """Handle click on checkbox column to toggle selection."""
+        column = self.tree.identify_column(event.x)
+        
+        # Check if click is in the checkbox column (column #2 which is index 1)
+        if column == "#2":  # Checkbox column
+            item = self.tree.identify_row(event.y)
+            if item:
+                # Get the news item from our checkboxes dict
+                news_item = self.checkboxes.get(item)
+                if news_item:
+                    # Toggle selection
+                    current_selection = getattr(news_item, 'selected_for_report', True)
+                    news_item.selected_for_report = not current_selection
+                    self._refresh_list()
     
     def _on_tree_double_click(self, event=None):
         """Handle double-click on tree item to toggle selection."""
@@ -762,6 +784,9 @@ class NewsReportApp(ctk.CTk):
         for item in self.tree.get_children():
             self.tree.delete(item)
         
+        # Clear checkboxes dict
+        self.checkboxes.clear()
+        
         for i, news_item in enumerate(self.manager.items, 1):
             if not query or \
                query in news_item.title.lower() or \
@@ -770,7 +795,7 @@ class NewsReportApp(ctk.CTk):
                (news_item.category and query in news_item.category.lower()):
                 # Check if item is selected for report (default: all selected)
                 checkmark = "✓" if getattr(news_item, 'selected_for_report', True) else ""
-                self.tree.insert("", "end", values=(
+                item_id = self.tree.insert("", "end", values=(
                     i,
                     checkmark,
                     news_item.source,
@@ -778,6 +803,8 @@ class NewsReportApp(ctk.CTk):
                     news_item.category or "",
                     news_item.get_attachments_summary()
                 ))
+                # Store reference to this item's selection state
+                self.checkboxes[item_id] = news_item
     
     def _update_stats(self):
         """Update the statistics display."""
@@ -788,10 +815,13 @@ class NewsReportApp(ctk.CTk):
         for item in self.tree.get_children():
             self.tree.delete(item)
         
+        # Clear checkboxes dict
+        self.checkboxes.clear()
+        
         for i, news_item in enumerate(self.manager.items, 1):
             # Check if item is selected for report (default: all selected)
             checkmark = "✓" if getattr(news_item, 'selected_for_report', True) else ""
-            self.tree.insert("", "end", values=(
+            item_id = self.tree.insert("", "end", values=(
                 i,
                 checkmark,
                 news_item.source,
@@ -799,6 +829,8 @@ class NewsReportApp(ctk.CTk):
                 news_item.category or "",
                 news_item.get_attachments_summary()
             ))
+            # Store reference to this item's selection state
+            self.checkboxes[item_id] = news_item
         
         self._update_stats()
         self._filter_list()  # Apply current filter
