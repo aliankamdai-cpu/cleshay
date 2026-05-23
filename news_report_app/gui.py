@@ -12,9 +12,21 @@ from collections import defaultdict
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import pyperclip
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 from models import NewsItem
 from doc_generator import DocExporter
+
+def fix_arabic_text(text):
+    """Fix Arabic text display by reshaping and applying BiDi algorithm."""
+    if not text:
+        return text
+    try:
+        reshaped = arabic_reshaper.reshape(text)
+        return get_display(reshaped)
+    except:
+        return text
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("dark")
@@ -178,7 +190,7 @@ class NewsDialog(ctk.CTkToplevel):
     def _create_widgets(self):
         """Create all dialog widgets with modern styling."""
         # Main scrollable frame
-        main_scroll = ctk.CTkScrollableFrame(self, label_text="معلومات الخبر")
+        main_scroll = ctk.CTkScrollableFrame(self, label_text=fix_arabic_text("معلومات الخبر"))
         main_scroll.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Header section
@@ -585,7 +597,7 @@ class ModernNewsApp(ctk.CTk):
         
         title_label = ctk.CTkLabel(
             title_frame,
-            text="نظام إدارة الأخبار",
+            text=fix_arabic_text("نظام إدارة الأخبار"),
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color=COLORS["text_primary"]
         )
@@ -605,7 +617,7 @@ class ModernNewsApp(ctk.CTk):
         
         stats_title = ctk.CTkLabel(
             stats_frame,
-            text="📊 الإحصائيات",
+            text=fix_arabic_text("📊 الإحصائيات"),
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=COLORS["text_primary"]
         )
@@ -613,7 +625,7 @@ class ModernNewsApp(ctk.CTk):
         
         self.total_label = ctk.CTkLabel(
             stats_frame,
-            text="إجمالي الأخبار: 0",
+            text=fix_arabic_text("إجمالي الأخبار: 0"),
             font=ctk.CTkFont(size=13),
             text_color=COLORS["text_secondary"]
         )
@@ -621,7 +633,7 @@ class ModernNewsApp(ctk.CTk):
         
         self.selected_label = ctk.CTkLabel(
             stats_frame,
-            text="المحددة للتقرير: 0",
+            text=fix_arabic_text("المحددة للتقرير: 0"),
             font=ctk.CTkFont(size=13),
             text_color=COLORS["text_secondary"]
         )
@@ -633,7 +645,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             actions_frame,
-            text="➕ إضافة خبر جديد",
+            text=fix_arabic_text("➕ إضافة خبر جديد"),
             command=self._add_news,
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color=COLORS["primary"],
@@ -644,7 +656,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             actions_frame,
-            text="📄 توليد التقرير Word",
+            text=fix_arabic_text("📄 توليد التقرير Word"),
             command=self._generate_report,
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color=COLORS["secondary"],
@@ -655,7 +667,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             actions_frame,
-            text="🔄 تحديث القائمة",
+            text=fix_arabic_text("🔄 تحديث القائمة"),
             command=self._load_news,
             font=ctk.CTkFont(size=14),
             fg_color="#757575",
@@ -670,7 +682,7 @@ class ModernNewsApp(ctk.CTk):
         
         filter_title = ctk.CTkLabel(
             filter_frame,
-            text="🔍 الفلاتر",
+            text=fix_arabic_text("🔍 الفلاتر"),
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=COLORS["text_primary"]
         )
@@ -682,7 +694,7 @@ class ModernNewsApp(ctk.CTk):
         search_entry = ctk.CTkEntry(
             filter_frame,
             textvariable=self.search_var,
-            placeholder_text="بحث بالعنوان أو المصدر...",
+            placeholder_text=fix_arabic_text("بحث بالعنوان أو المصدر..."),
             font=ctk.CTkFont(size=13),
             height=40,
             corner_radius=10
@@ -692,7 +704,7 @@ class ModernNewsApp(ctk.CTk):
         # Category filter
         cat_label = ctk.CTkLabel(
             filter_frame,
-            text="تصفية حسب التصنيف:",
+            text=fix_arabic_text("تصفية حسب التصنيف:"),
             font=ctk.CTkFont(size=12),
             text_color=COLORS["text_secondary"],
             anchor="e"
@@ -720,7 +732,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             select_frame,
-            text="✓ تحديد الكل",
+            text=fix_arabic_text("✓ تحديد الكل"),
             command=self._select_all,
             font=ctk.CTkFont(size=13),
             fg_color=COLORS["success"],
@@ -731,7 +743,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             select_frame,
-            text="✗ إلغاء تحديد الكل",
+            text=fix_arabic_text("✗ إلغاء تحديد الكل"),
             command=self._deselect_all,
             font=ctk.CTkFont(size=13),
             fg_color=COLORS["warning"],
@@ -752,7 +764,7 @@ class ModernNewsApp(ctk.CTk):
         
         header_label = ctk.CTkLabel(
             header_frame,
-            text="📋 قائمة الأخبار",
+            text=fix_arabic_text("📋 قائمة الأخبار"),
             font=ctk.CTkFont(size=20, weight="bold"),
             text_color=COLORS["text_primary"]
         )
@@ -761,7 +773,7 @@ class ModernNewsApp(ctk.CTk):
         # Info label
         self.info_label = ctk.CTkLabel(
             header_frame,
-            text="انقر نقرًا مزدوجًا على أي صف لتبديل التحديد",
+            text=fix_arabic_text("انقر نقرًا مزدوجًا على أي صف لتبديل التحديد"),
             font=ctk.CTkFont(size=12),
             text_color=COLORS["text_secondary"]
         )
@@ -785,7 +797,7 @@ class ModernNewsApp(ctk.CTk):
         if not filtered_items:
             empty_label = ctk.CTkLabel(
                 self.news_scroll,
-                text="لا توجد أخبار لعرضها",
+                text=fix_arabic_text("لا توجد أخبار لعرضها"),
                 font=ctk.CTkFont(size=16),
                 text_color=COLORS["text_secondary"]
             )
@@ -838,7 +850,7 @@ class ModernNewsApp(ctk.CTk):
         
         cat_badge = ctk.CTkLabel(
             top_frame,
-            text=f"📋 {item.category}",
+            text=f"📋 {fix_arabic_text(item.category)}",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="white",
             fg_color=cat_color,
@@ -851,7 +863,7 @@ class ModernNewsApp(ctk.CTk):
         # Title
         title_label = ctk.CTkLabel(
             top_frame,
-            text=item.title[:80] + "..." if len(item.title) > 80 else item.title,
+            text=fix_arabic_text(item.title[:80] + "..." if len(item.title) > 80 else item.title),
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=COLORS["text_primary"],
             anchor="e"
@@ -864,7 +876,7 @@ class ModernNewsApp(ctk.CTk):
         
         source_label = ctk.CTkLabel(
             mid_frame,
-            text=f"📰 {item.source}",
+            text=f"📰 {fix_arabic_text(item.source)}",
             font=ctk.CTkFont(size=12),
             text_color=COLORS["secondary"]
         )
@@ -881,7 +893,7 @@ class ModernNewsApp(ctk.CTk):
         if item.image_path:
             img_indicator = ctk.CTkLabel(
                 mid_frame,
-                text="🖼️ صورة مرفقة",
+                text=fix_arabic_text("🖼️ صورة مرفقة"),
                 font=ctk.CTkFont(size=11),
                 text_color=COLORS["success"]
             )
@@ -891,7 +903,7 @@ class ModernNewsApp(ctk.CTk):
         content_preview = item.content[:150] + "..." if len(item.content) > 150 else item.content
         content_label = ctk.CTkLabel(
             card,
-            text=content_preview,
+            text=fix_arabic_text(content_preview),
             font=ctk.CTkFont(size=12),
             text_color=COLORS["text_secondary"],
             anchor="e",
@@ -906,7 +918,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             btn_frame,
-            text="👁️ عرض",
+            text=fix_arabic_text("👁️ عرض"),
             command=lambda idx=actual_idx: self._view_news(idx),
             font=ctk.CTkFont(size=12),
             fg_color=COLORS["secondary"],
@@ -918,7 +930,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             btn_frame,
-            text="✏️ تعديل",
+            text=fix_arabic_text("✏️ تعديل"),
             command=lambda idx=actual_idx: self._edit_news(idx),
             font=ctk.CTkFont(size=12),
             fg_color=COLORS["warning"],
@@ -930,7 +942,7 @@ class ModernNewsApp(ctk.CTk):
         
         ctk.CTkButton(
             btn_frame,
-            text="🗑️ حذف",
+            text=fix_arabic_text("🗑️ حذف"),
             command=lambda idx=actual_idx: self._delete_news(idx),
             font=ctk.CTkFont(size=12),
             fg_color=COLORS["danger"],
@@ -1093,7 +1105,7 @@ class EditNewsDialog(ctk.CTkToplevel):
     
     def _create_widgets(self):
         """Create edit dialog widgets."""
-        main_scroll = ctk.CTkScrollableFrame(self, label_text="تعديل معلومات الخبر")
+        main_scroll = ctk.CTkScrollableFrame(self, label_text=fix_arabic_text("تعديل معلومات الخبر"))
         main_scroll.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Source

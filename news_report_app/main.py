@@ -1,11 +1,11 @@
 """Main entry point for the news report application."""
 
-from gui import NewsReportApp
+from gui import ModernNewsApp
 
 
 def main():
     """Run the news report application."""
-    app = NewsReportApp()
+    app = ModernNewsApp()
     app.mainloop()
 
 
