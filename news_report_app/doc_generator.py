@@ -147,11 +147,35 @@ class DocExporter:
             return False
         
         try:
+            # Try to open and convert image using PIL to ensure compatibility
+            from io import BytesIO
+            from PIL import Image as PILImage
+            
+            with PILImage.open(normalized_path) as img:
+                # Convert to RGB if necessary (for PNG with transparency, etc.)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    # Create white background for transparent images
+                    background = PILImage.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    if img.mode in ('RGBA', 'LA'):
+                        background.paste(img, mask=img.split()[-1])
+                        img = background
+                    else:
+                        img = img.convert('RGB')
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Save to bytes in JPEG format for maximum compatibility
+                img_bytes = BytesIO()
+                img.save(img_bytes, format='JPEG', quality=85)
+                img_bytes.seek(0)
+            
             para = doc.add_paragraph()
             para.alignment = WD_ALIGN_PARAGRAPH.RIGHT  # Align with RTL text
             
             run = para.add_run()
-            run.add_picture(normalized_path, width=Inches(5))
+            run.add_picture(img_bytes, width=Inches(5))
             
             # Add caption
             caption = doc.add_paragraph()

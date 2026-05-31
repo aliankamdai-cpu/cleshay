@@ -39,4 +39,7 @@ htmlcov/
 # Testing
 .pytest_cache/
 .mypy_cache/
+
+# Output files
+news_report_app/output/
 ```

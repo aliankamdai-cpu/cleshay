@@ -13,20 +13,13 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 import pyperclip
 import arabic_reshaper
-from bidi.algorithm import get_display
 
 from models import NewsItem
 from doc_generator import DocExporter
 
 def fix_arabic_text(text):
-    """Fix Arabic text display by reshaping and applying BiDi algorithm."""
-    if not text:
-        return text
-    try:
-        reshaped = arabic_reshaper.reshape(text)
-        return get_display(reshaped)
-    except:
-        return text
+    """Return text as-is for Arabic display in RTL GUI."""
+    return text
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("dark")
@@ -55,6 +48,7 @@ class NewsManager:
     def __init__(self):
         self.items: List[NewsItem] = []
         self.sources: List[str] = []
+        self.categories: List[str] = []
         self.data_file = Path(__file__).parent / "output" / "news_data.json"
         self._load()
     
@@ -64,6 +58,10 @@ class NewsManager:
             try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                    # Clear existing items to prevent duplication
+                    self.items.clear()
+                    self.sources.clear()
+                    self.categories.clear()
                     for item_data in data.get('items', []):
                         item = NewsItem(
                             id=item_data.get('id', ''),
@@ -81,6 +79,8 @@ class NewsManager:
                         self.items.append(item)
                         if item.source and item.source not in self.sources:
                             self.sources.append(item.source)
+                        if item.category and item.category not in self.categories:
+                            self.categories.append(item.category)
             except Exception as e:
                 print(f"Warning: Could not load saved data: {e}")
     
@@ -113,6 +113,8 @@ class NewsManager:
         self.items.append(item)
         if item.source and item.source not in self.sources:
             self.sources.append(item.source)
+        if item.category and item.category not in self.categories:
+            self.categories.append(item.category)
         self._save()
     
     def remove_item(self, index: int) -> None:
@@ -161,11 +163,12 @@ class NewsManager:
 class NewsDialog(ctk.CTkToplevel):
     """Modal dialog for adding/editing news items with modern UI."""
     
-    def __init__(self, parent, on_save_callback, sources: List[str] = None):
+    def __init__(self, parent, on_save_callback, sources: List[str] = None, categories: List[str] = None):
         super().__init__(parent)
         self.parent = parent
         self.on_save = on_save_callback
         self.available_sources = sources or []
+        self.available_categories = categories or []
         
         self.title("✨ إضافة خبر جديد")
         self.geometry("750x950")
@@ -219,13 +222,12 @@ class NewsDialog(ctk.CTkToplevel):
         
         self.source_var = tk.StringVar()
         self.source_combo = ctk.CTkComboBox(
-            field_frame, 
+            field_frame,
             values=self.available_sources + ["--- مصدر جديد ---"],
             variable=self.source_var,
             width=650,
             font=ctk.CTkFont(size=13),
-            dropdown_font=ctk.CTkFont(size=13),
-            state="readonly"
+            dropdown_font=ctk.CTkFont(size=13)
         )
         self.source_combo.pack(fill="x", anchor="e")
         self.source_combo.set("")
@@ -244,15 +246,15 @@ class NewsDialog(ctk.CTkToplevel):
         category_label.pack(anchor="e", pady=(0, 5))
         
         self.category_var = tk.StringVar()
-        categories = ["عام", "سياسة", "اقتصاد", "رياضة", "تكنولوجيا", "صحة", "تعليم", "ثقافة", "منوعات", "حوادث", "طقس"]
+        default_categories = ["عام", "سياسة", "اقتصاد", "رياضة", "تكنولوجيا", "صحة", "تعليم", "ثقافة", "منوعات", "حوادث", "طقس"]
+        all_categories = list(dict.fromkeys(self.available_categories + default_categories))
         self.category_combo = ctk.CTkComboBox(
-            field_frame, 
-            values=categories,
+            field_frame,
+            values=all_categories,
             variable=self.category_var,
             width=650,
             font=ctk.CTkFont(size=13),
-            dropdown_font=ctk.CTkFont(size=13),
-            state="readonly"
+            dropdown_font=ctk.CTkFont(size=13)
         )
         self.category_combo.pack(fill="x", anchor="e")
         self.category_combo.set("")
@@ -997,7 +999,7 @@ class ModernNewsApp(ctk.CTk):
     
     def _add_news(self):
         """Open dialog to add new news."""
-        dialog = NewsDialog(self, self._on_news_saved, self.news_manager.sources)
+        dialog = NewsDialog(self, self._on_news_saved, self.news_manager.sources, self.news_manager.categories)
         self.wait_window(dialog)
     
     def _on_news_saved(self, item: NewsItem):
@@ -1071,7 +1073,7 @@ class ModernNewsApp(ctk.CTk):
         
         try:
             exporter = DocExporter()
-            output_path = exporter.export(selected_items)
+            output_path = exporter.generate(selected_items)
             
             messagebox.showinfo(
                 "نجاح", 
@@ -1141,12 +1143,11 @@ class EditNewsDialog(ctk.CTkToplevel):
         self.category_var = tk.StringVar(value=self.item.category)
         categories = ["عام", "سياسة", "اقتصاد", "رياضة", "تكنولوجيا", "صحة", "تعليم", "ثقافة", "منوعات", "حوادث", "طقس"]
         ctk.CTkComboBox(
-            field_frame, 
+            field_frame,
             values=categories,
             variable=self.category_var,
             width=650,
-            font=ctk.CTkFont(size=13),
-            state="readonly"
+            font=ctk.CTkFont(size=13)
         ).pack(fill="x", anchor="e")
         
         # Title
