@@ -42,4 +42,5 @@ htmlcov/
 
 # Output files
 news_report_app/output/
+news_report_app/doc_output.txt
 ```
